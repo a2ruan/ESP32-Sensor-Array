@@ -1,7 +1,7 @@
 /*************** DECLARATIONS**************************/
 // Enables
 int BT_enable = 0;
-int lora_enable = 1;
+int lora_enable = 0;
 
 //Display
 #include "Arduino.h"
@@ -18,7 +18,9 @@ RTC_DS3231 rtc;
 // External ADC
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
-Adafruit_ADS1115 ads(0x48);
+Adafruit_ADS1115 ads1(0x48);
+Adafruit_ADS1115 ads2(0x49);
+int counterSelect = 0;
 
 // Internal ADC
 const int usbSense = 36;
@@ -56,6 +58,9 @@ ClosedCube_HDC1080 hdc1080;
 const int ledGreen = 32;
 const int ledRed = 33;
 const int ledBlue = 25;
+const int ledGreen2 = 39;
+const int ledRed2 = 34;
+const int ledBlue2 = 35;
 
 // RESISTANCE MEASUREMENT
 const int sensorPin1 = 39;  // Analog input pin that senses Vout
@@ -64,10 +69,10 @@ double sensorVoltage = 0;  // sensorPin default value
 
 double Vin = 3.312;             // Input voltage
 double Vout1 = 0;            // Vout default value
-double Rref = 983;          // Reference resistor's value in ohms (you can give this value in kiloohms or megaohms - the resistance of the tested resistor will be given in the same units)
+double Rref = 1500;          // Reference resistor's value in ohms (you can give this value in kiloohms or megaohms - the resistance of the tested resistor will be given in the same units)
 
 // Buzzer
-const int buzzer = 13;
+const int buzzer = 23;
 int freq = 2000;
 int channel = 0;
 int resolution = 8;
@@ -104,9 +109,10 @@ void setup() {
   Heltec.display->flipScreenVertically();
   
   // External ADC
-  ads.setGain(GAIN_ONE);
-  ads.begin();
-
+  ads1.setGain(GAIN_ONE);
+  ads1.begin();
+  ads2.setGain(GAIN_ONE);
+  ads2.begin();
   // Internal ADC
   pinMode(usbSense, INPUT);
   pinMode(batterySense, INPUT);
@@ -119,6 +125,9 @@ void setup() {
   pinMode (ledRed, OUTPUT);
   pinMode (ledGreen, OUTPUT);
   pinMode (ledBlue, OUTPUT);
+  pinMode (ledRed2, OUTPUT);
+  pinMode (ledGreen2, OUTPUT);
+  pinMode (ledBlue2, OUTPUT);
   
   // TEMP/RH SENSOR
   hdc1080.begin(0x40);
@@ -165,7 +174,7 @@ void loop() {
   //DateTime now = rtc.now();
   //Serial.println((String)now.hour() + ":"+ (String)now.minute() + ":" + (String)now.second());
 
-  //setLed(3);
+  setLed2(2);
   setBuzzer(200,100);
 
   getBatteryLevel();

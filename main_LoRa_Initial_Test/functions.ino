@@ -48,6 +48,16 @@ void setLed(int color) {
   else if (color == 3) {digitalWrite (ledBlue, HIGH);}
 }
 
+void setLed2(int color) {
+  digitalWrite (ledRed2, LOW);
+  digitalWrite (ledGreen2, LOW);
+  digitalWrite (ledBlue2, LOW);
+
+  if (color == 1) {digitalWrite (ledRed2, HIGH);}
+  else if (color == 2) {digitalWrite (ledGreen2, HIGH);}
+  else if (color == 3) {digitalWrite (ledBlue2, HIGH);}
+}
+
 void setBuzzer(int intensity, int toneLevel) {
   ledcWrite(channel, intensity); //(0-230)
   ledcWriteTone(channel, toneLevel);
@@ -57,11 +67,20 @@ void setBuzzer(int intensity, int toneLevel) {
 void getResistance() {
   //sensorVoltage = analogRead(sensorPin1);
   //int16_t tempVoltage = adc.readADC_SingleEnded(1);
-  sensorVoltage = ads.readADC_SingleEnded(0)*0.000125;
+  int i;
+  sensorVoltage = 0;
+  if (counterSelect > 7) {counterSelect = 0;}
+  for (i = 0; i < 5; i++) {
+    if (counterSelect < 4) {sensorVoltage = sensorVoltage + ads1.readADC_SingleEnded(counterSelect)*0.000125;}
+    if (counterSelect > 3) {sensorVoltage = sensorVoltage + ads2.readADC_SingleEnded(counterSelect-4)*0.000125;}
+  }
+  sensorVoltage = sensorVoltage / 5;
+  counterSelect = counterSelect + 1;
   //sensorVoltage = 0;
   resistance[0] = Rref * ((Vin / sensorVoltage)-1);  // Formula to calculate tested resistor's value
-  delayMicroseconds(100);                                                                                                    
-  Serial.println(resistance[0]);
+  //delayMicroseconds(100);
+  if (counterSelect == 1) {                                                                                                    
+  Serial.println((String)counterSelect + ":" + (String)resistance[0]);}
 }
 
 void transmitPacket() {
