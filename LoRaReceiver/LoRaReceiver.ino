@@ -1,7 +1,6 @@
 #include "heltec.h"
 #include "images.h"
-
-
+#include <HTTPClient.h>
 // Enables
 int BT_enable = 0;
 int lora_enable = 0;
@@ -9,7 +8,7 @@ int lora_enable = 0;
 // LoRa
 #include <stdio.h>
 #include <string.h>
-#define BAND    433E6  //you can set band here directly,e.g. 868E6,915E6
+#define BAND    915E6  //you can set band here directly,e.g. 868E6,915E6
 
 // Firebase
 #include <WiFi.h>
@@ -38,6 +37,7 @@ double temperature = 0;
 double humidity = 0;
 double ppm = 0;
 String timeStamp;
+String GOOGLE_SCRIPT_ID = "AKfycbwuRsl_vnO6jB8m-IcXgFQaCaF-7UTydW8CPirmV1G2nzcwfbId";
 
 void setup() {
   Heltec.begin(true /*DisplayEnable Enable*/, true /*Heltec.LoRa Disable*/, true /*Serial Enable*/, true /*PABOOST Enable*/, BAND /*long BAND*/);
@@ -81,7 +81,9 @@ String getValue(String data, char separator, int index) {
 
 void updateFirebase() {
   printLocalTime();
-  if (newConnect == 0) {Firebase.setString(firebaseData, "/Status/" + deviceName, timeStamp);}
+  if (newConnect == 0) {
+    Firebase.setString(firebaseData, "/Status/" + deviceName, timeStamp);
+  }
   newConnect = 1;
   Serial.println("hi----");
   Firebase.setString(firebaseData, deviceName + "/" + timeStamp + "/device_Name", deviceName);
@@ -233,10 +235,12 @@ void loop() {
       ppm = tempVal.toDouble();
 
       printToScreen();
+      initializeData();
       updateFirebase();
     }
   }
   delay(300);
+  initializeData();
 }
   
 void printToScreen() {
@@ -248,8 +252,7 @@ void printToScreen() {
   Serial.println(ppm); 
 }
 
-void printLocalTime()
-{
+void printLocalTime() {
   time_t rawtime;
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)) {
@@ -260,6 +263,41 @@ void printLocalTime()
   strftime(timeStringBuff, sizeof(timeStringBuff), "%A, %B %d %Y %H:%M:%S", &timeinfo);
   Serial.println(timeStringBuff);
   timeStamp = (String)timeStringBuff;
+}
+
+void initializeData() {
+  String sendCode = "";
+  sendCode = sendCode + "&" + "Temperature=" + temperature;
+  sendCode = sendCode + "&" + "Humidity=" + humidity;
+  sendCode = sendCode + "&" + "R1=" + resistance[0];
+  sendCode = sendCode + "&" + "dR1=" + deltaResistance[0];
+  sendCode = sendCode + "&" + "R2=" + resistance[1];
+  sendCode = sendCode + "&" + "dR2=" + deltaResistance[1];
+  sendCode = sendCode + "&" + "R3=" + resistance[2];
+  sendCode = sendCode + "&" + "dR3=" + deltaResistance[2];
+  sendCode = sendCode + "&" + "R4=" + resistance[3];
+  sendCode = sendCode + "&" + "dR4=" + deltaResistance[3];
+  sendCode = sendCode + "&" + "R5=" + resistance[4];
+  sendCode = sendCode + "&" + "dR5=" + deltaResistance[4];
+  sendCode = sendCode + "&" + "R6=" + resistance[5];
+  sendCode = sendCode + "&" + "dR6=" + deltaResistance[5];
+  sendCode = sendCode + "&" + "R7=" + resistance[6];
+  sendCode = sendCode + "&" + "dR7=" + deltaResistance[6];
+  sendCode = sendCode + "&" + "R8=" + resistance[7];
+  sendCode = sendCode + "&" + "dR8=" + deltaResistance[7];
+  sendData("Data",sendCode);
+}
+
+void sendData(String sheetName,String codex) {
+      //sendData("id=Data" + sendCode);
+   HTTPClient http;
+   String url="https://script.google.com/macros/s/"+GOOGLE_SCRIPT_ID+"/exec?id=" + sheetName +codex;
+   Serial.print(url);
+    Serial.print("Making a request");
+    http.begin(url); //Specify the URL and certificate
+    int httpCode = http.GET();  
+    http.end();
+    Serial.println(": done "+httpCode);
 }
 
 String double2string(double n, int ndec) {

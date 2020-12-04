@@ -104,7 +104,7 @@ void transmitPacket() {
       delay(30); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
   }
   if (!deviceConnected && oldDeviceConnected) { // disconnecting
-      delay(500); // give the bluetooth stack the chance to get things ready
+      delay(100); // give the bluetooth stack the chance to get things ready
       pServer->startAdvertising(); // restart advertising
       Serial.println("start advertising");
       oldDeviceConnected = deviceConnected;

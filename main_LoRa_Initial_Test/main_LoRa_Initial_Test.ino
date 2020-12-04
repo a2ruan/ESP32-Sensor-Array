@@ -11,7 +11,7 @@ int lora_enable = 1;
 #define DEMO_DURATION 3000
 typedef void (*Demo)(void);
 
-String deviceName = "Gas Sensor 1";
+String deviceName = "Gas_Sensor_1"; // NO BLANK SPACES PERMITTED
 
 // RTC
 #include <RTClib.h>
@@ -40,7 +40,7 @@ boolean usbPluggedIn;
 #define PIN_SCL 22
 
 // LoRA
-#define BAND    433E6  //you can set band here directly,e.g. 868E6,915E6
+#define BAND    915E6  //you can set band here directly,e.g. 868E6,915E6
 
 // PACKET OUTPUTS
 unsigned long relativeTime = 0;
