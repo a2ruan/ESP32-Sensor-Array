@@ -2,25 +2,15 @@ void displayData() {
   int x = 0;
   int y = 0;
   Heltec.display->drawXbm(x, y, Wifi_on_width, Wifi_on_height, Wifi_on_bits);
-
   if (BT_enable == 1) {Heltec.display->drawXbm(x+18, y, Bluetooth_on_width, Bluetooth_on_height, Bluetooth_on_bits);}
   else {Heltec.display->drawXbm(x+18, y, Bluetooth_off_width, Bluetooth_off_height, Bluetooth_off_bits);}
-
   if (lora_enable == 1) {Heltec.display->drawXbm(x+30, y, Lora_on_width, Lora_on_height, Lora_on_bits);}
   else {Heltec.display->drawXbm(x+30, y, Lora_off_width, Lora_off_height, Lora_off_bits);}
-
   if (usbPluggedIn) {Heltec.display->drawXbm(x+100, y, Battery_charging_width, Battery_charging_height, Battery_charging_bits);}
   else if (batteryLevel > 3.59){Heltec.display->drawXbm(x+100, y, Battery_100_width, Battery_100_height, Battery_100_bits);}
   else if (batteryLevel > 3.45){Heltec.display->drawXbm(x+100, y, Battery_66_width, Battery_66_height, Battery_66_bits);}
   else if (batteryLevel > 3.3){Heltec.display->drawXbm(x+100, y, Battery_33_width, Battery_33_height, Battery_33_bits);}
   else if (batteryLevel > 0){Heltec.display->drawXbm(x+100, y, Battery_0_width, Battery_0_height, Battery_0_bits);}
-  
-
-//  Heltec.display->drawXbm(x, y, Wifi_off_width, Wifi_off_height, Wifi_off_bits);
-//  Heltec.display->drawXbm(x+18, y, Bluetooth_off_width, Bluetooth_off_height, Bluetooth_off_bits);
-//  Heltec.display->drawXbm(x+30, y, Lora_off_width, Lora_off_height, Lora_off_bits);
-//  Heltec.display->drawXbm(x+100, y, Battery_0_width, Battery_0_height, Battery_0_bits);
-  
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
   Heltec.display->setFont(ArialMT_Plain_10);
   Heltec.display->drawString(x, y + 10, (String)batteryLevel + " V");
@@ -52,7 +42,6 @@ void setLed2(int color) {
   digitalWrite (ledRed2, LOW);
   digitalWrite (ledGreen2, LOW);
   digitalWrite (ledBlue2, LOW);
-
   if (color == 1) {digitalWrite (ledRed2, HIGH);}
   else if (color == 2) {digitalWrite (ledGreen2, HIGH);}
   else if (color == 3) {digitalWrite (ledBlue2, HIGH);}
@@ -65,8 +54,6 @@ void setBuzzer(int intensity, int toneLevel) {
 
 
 void getResistance() {
-  //sensorVoltage = analogRead(sensorPin1);
-  //int16_t tempVoltage = adc.readADC_SingleEnded(1);
   int i;
   sensorVoltage = 0;
   if (counterSelect > 7) {counterSelect = 0;}
