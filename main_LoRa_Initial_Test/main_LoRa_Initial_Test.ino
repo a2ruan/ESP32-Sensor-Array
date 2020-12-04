@@ -1,9 +1,9 @@
 /*************** DECLARATIONS**************************/
 // Enables
 int BT_enable = 0;
-int lora_enable = 0;
+int lora_enable = 1;
 
-//Display
+// Display
 #include "Arduino.h"
 #include "heltec.h"
 #include "images.h"
@@ -11,7 +11,9 @@ int lora_enable = 0;
 #define DEMO_DURATION 3000
 typedef void (*Demo)(void);
 
-//RTC
+String deviceName = "Gas Sensor 1";
+
+// RTC
 #include <RTClib.h>
 RTC_DS3231 rtc;
 
@@ -20,7 +22,6 @@ RTC_DS3231 rtc;
 #include <Adafruit_ADS1015.h>
 Adafruit_ADS1115 ads1(0x48);
 Adafruit_ADS1115 ads2(0x49);
-int counterSelect = 0;
 
 // Internal ADC
 const int usbSense = 36;
@@ -43,8 +44,8 @@ boolean usbPluggedIn;
 
 // PACKET OUTPUTS
 unsigned long relativeTime = 0;
-double resistance[5];
-double deltaResistance[5];
+double resistance[8];
+double deltaResistance[8];
 double temperature = 0;
 double humidity = 0;
 double ppm = 0;
@@ -58,17 +59,11 @@ ClosedCube_HDC1080 hdc1080;
 const int ledGreen = 32;
 const int ledRed = 33;
 const int ledBlue = 25;
-const int ledGreen2 = 39;
-const int ledRed2 = 34;
-const int ledBlue2 = 35;
 
 // RESISTANCE MEASUREMENT
 const int sensorPin1 = 39;  // Analog input pin that senses Vout
-int S[4];
 double sensorVoltage = 0;  // sensorPin default value
-
 double Vin = 3.312;             // Input voltage
-double Vout1 = 0;            // Vout default value
 double Rref = 1500;          // Reference resistor's value in ohms (you can give this value in kiloohms or megaohms - the resistance of the tested resistor will be given in the same units)
 
 // Buzzer
@@ -83,7 +78,6 @@ BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
-
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
@@ -96,12 +90,10 @@ class MyServerCallbacks: public BLEServerCallbacks {
       deviceConnected = false;
     }
 };
-/*****************************************************************************/
+
 void setup() {
-  
-  resistance[0] = 0, resistance[1] = 0, resistance[2]=0, resistance[3] = 0, resistance[4]=0;
-  deltaResistance[0] = 0, deltaResistance[1] = 0, deltaResistance[2]=0, deltaResistance[3] = 0, deltaResistance[4]=0;
-  S[0] = 0, S[1] = 1, S[2]=2, S[3] = 3;
+//  resistance[0] = 0, resistance[1] = 0, resistance[2]=0, resistance[3] = 0, resistance[4]=0;
+//  deltaResistance[0] = 0, deltaResistance[1] = 0, deltaResistance[2]=0, deltaResistance[3] = 0, deltaResistance[4]=0;
   
   // DISPLAY
   Serial.begin(115200);
@@ -125,22 +117,9 @@ void setup() {
   pinMode (ledRed, OUTPUT);
   pinMode (ledGreen, OUTPUT);
   pinMode (ledBlue, OUTPUT);
-  pinMode (ledRed2, OUTPUT);
-  pinMode (ledGreen2, OUTPUT);
-  pinMode (ledBlue2, OUTPUT);
   
   // TEMP/RH SENSOR
   hdc1080.begin(0x40);
-
-  //RESISTANCE MEASUREMENT
-  pinMode (S[0], OUTPUT);
-  pinMode (S[1], OUTPUT);
-  pinMode (S[2], OUTPUT);
-  pinMode (S[3], OUTPUT);
-  digitalWrite (S[0], LOW);
-  digitalWrite (S[1], LOW);
-  digitalWrite (S[2], LOW);
-  digitalWrite (S[3], LOW);
 
   // BUZZER
   ledcSetup(channel, freq, resolution);
@@ -174,7 +153,7 @@ void loop() {
   //DateTime now = rtc.now();
   //Serial.println((String)now.hour() + ":"+ (String)now.minute() + ":" + (String)now.second());
 
-  setLed2(2);
+  setLed(2);
   setBuzzer(200,100);
 
   getBatteryLevel();
