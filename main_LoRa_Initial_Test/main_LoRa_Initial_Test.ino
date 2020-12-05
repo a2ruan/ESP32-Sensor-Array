@@ -155,13 +155,17 @@ void loop() {
   //DateTime now = rtc.now();
   //Serial.println((String)now.hour() + ":"+ (String)now.minute() + ":" + (String)now.second());
 
-  setLed(2);
-  setBuzzer(200,100);
+  //setLed(2);
+  //setBuzzer(200,100);
 
   getBatteryLevel();
   getUSBIndicator();
+  
   temperature = hdc1080.readTemperature();
   humidity = hdc1080.readHumidity();
+  if (temperature > 120 || humidity > 90) { // Resync temperature if required
+    hdc1080.begin(0x40);
+  }
   getResistance();
   updatePPM();
 

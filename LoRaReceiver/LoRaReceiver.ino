@@ -62,9 +62,9 @@ void setup() {
   Heltec.display->drawString(0, 0, "Connecting to Wifi...");
   Heltec.display->display();
   while (WiFi.status() != WL_CONNECTED) {
-    //Serial.print(".");
-    delay(300);
     //WiFi.reconnect();
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    delay(600);
   }
   //Serial.println();
   //Serial.print("Connected with IP: ");
