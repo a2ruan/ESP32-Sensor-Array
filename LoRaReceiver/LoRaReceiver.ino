@@ -17,6 +17,7 @@ int lora_enable = 0;
 #define FIREBASE_AUTH "xBwc6woVX1si03ByKGmgjbozxS9w7raAIZhWtD4G"
 #define WIFI_SSID "199Russell"
 #define WIFI_PASSWORD "Mce7576s2t"
+String locale;
 FirebaseData firebaseData;
 //#define WIFI_SSID "Esp32"
 //#define WIFI_PASSWORD "miniclip"
@@ -39,30 +40,63 @@ double ppm = 0;
 String timeStamp;
 String GOOGLE_SCRIPT_ID = "AKfycbwuRsl_vnO6jB8m-IcXgFQaCaF-7UTydW8CPirmV1G2nzcwfbId";
 
+// Multithreading (to speed up HTTPS writes)
+TaskHandle_t Task1;
+
+void codeForTask1( void * parameter )
+{
+  for(;;) {
+          Serial.print("This Task run on Core: ");
+          Serial.println(xPortGetCoreID());
+          initializeData();
+      }
+}
+
 void setup() {
   Heltec.begin(true /*DisplayEnable Enable*/, true /*Heltec.LoRa Disable*/, true /*Serial Enable*/, true /*PABOOST Enable*/, BAND /*long BAND*/);
   Heltec.display->flipScreenVertically();
   Serial.begin(115200);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Connecting to Wi-Fi");
+  //Serial.print("Connecting to Wi-Fi");
+  Heltec.display->clear();
+  Heltec.display->drawString(0, 0, "Connecting to Wifi...");
+  Heltec.display->display();
   while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
+    //Serial.print(".");
     delay(300);
     //WiFi.reconnect();
   }
-  Serial.println();
-  Serial.print("Connected with IP: ");
-  Serial.println(WiFi.localIP());
-  Serial.println();
+  //Serial.println();
+  //Serial.print("Connected with IP: ");
+  locale = WiFi.localIP().toString();
+  //Serial.println(locale);
+  //Serial.println();
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
   Firebase.reconnectWiFi(true);
   if(Firebase.setInt(firebaseData, "/Status", 1)) {Serial.println("Set int data success");} 
   else {
-    Serial.print("Error in setInt, ");
-    Serial.println(firebaseData.errorReason());
+    //Serial.print("Error in setInt, ");
+    //Serial.println(firebaseData.errorReason());
   }
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   printLocalTime();
+  LoRa.setSpreadingFactor(7);
+  Heltec.display->clear();
+  Heltec.display->drawString(0, 0, "Success!");
+  Heltec.display->drawString(0, 10, "Connected to " + locale);
+  Heltec.display->drawString(0, 20, "Scanning for LoRA Broadcasts nearby...");
+  Heltec.display->display();
+
+
+   xTaskCreatePinnedToCore(
+    codeForTask1,           /*Task Function. */
+    "Task_1",               /*name of task. */
+    20000,                   /*Stack size of task. */
+    NULL,                   /* parameter of the task. */
+    1,                      /* proiority of the task. */
+    &Task1,                 /* Task handel to keep tra ck of created task. */
+    0);                     /* choose Core */  
+  
 }
 
 String getValue(String data, char separator, int index) {
@@ -109,15 +143,11 @@ void updateFirebase() {
 }
 
 void displayData() {
-  int x = 0;
-  int y = 0;
+  int x = 0; int y = 0;
   Heltec.display->drawXbm(x, y, Wifi_on_width, Wifi_on_height, Wifi_on_bits);
-  if (BT_enable == 1) {Heltec.display->drawXbm(x+18, y, Bluetooth_on_width, Bluetooth_on_height, Bluetooth_on_bits);}
-  else {Heltec.display->drawXbm(x+18, y, Bluetooth_off_width, Bluetooth_off_height, Bluetooth_off_bits);}
-  if (lora_enable == 1) {Heltec.display->drawXbm(x+30, y, Lora_on_width, Lora_on_height, Lora_on_bits);}
-  else {Heltec.display->drawXbm(x+30, y, Lora_off_width, Lora_off_height, Lora_off_bits);}
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
   Heltec.display->setFont(ArialMT_Plain_10);
+  Heltec.display->drawString(x+15, y, "IP:"+locale);
   Heltec.display->drawLine(62, 22,62, 80);
   Heltec.display->drawString(x, y + 10, "T=" + double2string(temperature,1) + "°C");
   Heltec.display->drawString(x+65, y + 10, "RH=" + double2string(humidity,0) + "%");
@@ -140,17 +170,37 @@ void displayData() {
 }
 
 void loop() {
-  // try to parse packet
-  Serial.println("hi");
   int packetSize = Heltec.LoRa.parsePacket();
+  //Serial.println("Packet Size:" + (String)packetSize);
   if (packetSize) {
     while (Heltec.LoRa.available()) {
       Heltec.display->clear();
       displayData();
       Heltec.display->display();
-      String packet = Heltec.LoRa.readString();
+      String packetRaw = Heltec.LoRa.readString();
+      updateVariables(packetRaw);
+      //initializeData();
+      //updateFirebase();
+      Serial.println("Main loop runs on Core:" + (String)xPortGetCoreID());
+    }
+  }
+}
+  
+void printLocalTime() {
+  time_t rawtime;
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)) {
+   Serial.println("Failed to obtain time");
+   return;
+  }
+  char timeStringBuff[50]; //50 chars should be enough
+  strftime(timeStringBuff, sizeof(timeStringBuff), "%A, %B %d %Y %H:%M:%S", &timeinfo);
+  Serial.println(timeStringBuff);
+  timeStamp = (String)timeStringBuff;
+}
 
-      String tempVal = getValue(packet,'/',0);
+void updateVariables(String packet) {
+  String tempVal = getValue(packet,'/',0);
       tempVal.remove(0,1);
       deviceName = tempVal;
       
@@ -234,35 +284,6 @@ void loop() {
       tempVal.remove(0,1);
       ppm = tempVal.toDouble();
 
-      printToScreen();
-      initializeData();
-      updateFirebase();
-    }
-  }
-  delay(300);
-  initializeData();
-}
-  
-void printToScreen() {
-  Serial.println(relativeTime);
-  Serial.println(temperature);
-  Serial.println(humidity);
-  Serial.println(resistance[0]);
-  Serial.println(deltaResistance[0]);
-  Serial.println(ppm); 
-}
-
-void printLocalTime() {
-  time_t rawtime;
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)) {
-    Serial.println("Failed to obtain time");
-   return;
-  }
-  char timeStringBuff[50]; //50 chars should be enough
-  strftime(timeStringBuff, sizeof(timeStringBuff), "%A, %B %d %Y %H:%M:%S", &timeinfo);
-  Serial.println(timeStringBuff);
-  timeStamp = (String)timeStringBuff;
 }
 
 void initializeData() {
@@ -289,15 +310,14 @@ void initializeData() {
 }
 
 void sendData(String sheetName,String codex) {
-      //sendData("id=Data" + sendCode);
+    //Serial.println("XX:" + (String)millis());
    HTTPClient http;
    String url="https://script.google.com/macros/s/"+GOOGLE_SCRIPT_ID+"/exec?id=" + sheetName +codex;
-   Serial.print(url);
-    Serial.print("Making a request");
+    Serial.println(url);
     http.begin(url); //Specify the URL and certificate
     int httpCode = http.GET();  
+    //String httpCode = (String)http.getString();  
     http.end();
-    Serial.println(": done "+httpCode);
 }
 
 String double2string(double n, int ndec) {

@@ -143,6 +143,8 @@ void setup() {
   Heltec.display->drawXbm(0, 5, uOttawa_Logo_width, uOttawa_Logo_height, uOttawa_Logo_bits);
   Heltec.display->display();
   delay(2000);
+  LoRa.setSpreadingFactor(7);
+  LoRa.setTxPower(17,1);
 }
 
 void loop() {
@@ -165,5 +167,4 @@ void loop() {
 
   if (BT_enable == 1) {transmitPacket();}
   if (lora_enable == 1) {transmitLORAPacket();}
-  delay(30);
 }
