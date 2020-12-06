@@ -46,11 +46,13 @@ TaskHandle_t Task1;
 void codeForTask1( void * parameter )
 {
   for(;;) {
+          
           Serial.print("This Task run on Core: ");
           Serial.println(xPortGetCoreID());
           initializeData();
-      }
+  }
 }
+
 
 void setup() {
   Heltec.begin(true /*DisplayEnable Enable*/, true /*Heltec.LoRa Disable*/, true /*Serial Enable*/, true /*PABOOST Enable*/, BAND /*long BAND*/);
@@ -171,7 +173,7 @@ void displayData() {
 
 void loop() {
   int packetSize = Heltec.LoRa.parsePacket();
-  //Serial.println("Packet Size:" + (String)packetSize);
+  Serial.println("Packet Size:" + (String)packetSize);
   if (packetSize) {
     while (Heltec.LoRa.available()) {
       Heltec.display->clear();
