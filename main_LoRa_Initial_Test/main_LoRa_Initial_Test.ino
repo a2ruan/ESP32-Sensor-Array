@@ -44,6 +44,8 @@ boolean usbPluggedIn;
 
 // PACKET OUTPUTS
 unsigned long relativeTime = 0;
+unsigned long currentTime;
+unsigned long previousTime;
 double resistance[8];
 double deltaResistance[8];
 double temperature = 0;
@@ -145,6 +147,7 @@ void setup() {
   delay(2000);
   LoRa.setSpreadingFactor(7);
   LoRa.setTxPower(17,1);
+  previousTime = micros();
 }
 
 void loop() {

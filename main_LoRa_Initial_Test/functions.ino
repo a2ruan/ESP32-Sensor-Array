@@ -21,18 +21,18 @@ void displayData() {
   Heltec.display->drawString(x, y + 30, "R2:" + double2string(resistance[1],0));
   Heltec.display->drawString(x, y + 40, "R3:" + double2string(resistance[2],0));
   Heltec.display->drawString(x, y + 50, "R4:" + double2string(resistance[3],0));
-  Heltec.display->drawString(x+40, y + 20, "[" + double2string(deltaResistance[0],1) + "]");
-  Heltec.display->drawString(x+40, y + 30, "[" + double2string(deltaResistance[1],1) + "]");
-  Heltec.display->drawString(x+40, y + 40, "[" + double2string(deltaResistance[2],1) + "]");
-  Heltec.display->drawString(x+40, y + 50, "[" + double2string(deltaResistance[3],1) + "]");
+  Heltec.display->drawString(x+40, y + 20, "[" + double2string(abs(deltaResistance[0]),1) + "]");
+  Heltec.display->drawString(x+40, y + 30, "[" + double2string(abs(deltaResistance[1]),1) + "]");
+  Heltec.display->drawString(x+40, y + 40, "[" + double2string(abs(deltaResistance[2]),1) + "]");
+  Heltec.display->drawString(x+40, y + 50, "[" + double2string(abs(deltaResistance[3]),1) + "]");
   Heltec.display->drawString(x+65, y + 20, "R5:" + double2string(resistance[4],0));
   Heltec.display->drawString(x+65, y + 30, "R6:" + double2string(resistance[5],0));
   Heltec.display->drawString(x+65, y + 40, "R7:" + double2string(resistance[6],0));
   Heltec.display->drawString(x+65, y + 50, "R8:" + double2string(resistance[7],0));
-  Heltec.display->drawString(x+105, y + 20, "[" + double2string(deltaResistance[4],1) + "]");
-  Heltec.display->drawString(x+105, y + 30, "[" + double2string(deltaResistance[5],1) + "]");
-  Heltec.display->drawString(x+105, y + 40, "[" + double2string(deltaResistance[6],1) + "]");
-  Heltec.display->drawString(x+105, y + 50, "[" + double2string(deltaResistance[7],1) + "]");
+  Heltec.display->drawString(x+105, y + 20, "[" + double2string(abs(deltaResistance[4]),1) + "]");
+  Heltec.display->drawString(x+105, y + 30, "[" + double2string(abs(deltaResistance[5]),1) + "]");
+  Heltec.display->drawString(x+105, y + 40, "[" + double2string(abs(deltaResistance[6]),1) + "]");
+  Heltec.display->drawString(x+105, y + 50, "[" + double2string(abs(deltaResistance[7]),1) + "]");
 }
 
 void updatePPM() {
@@ -59,14 +59,29 @@ void setBuzzer(int intensity, int toneLevel) {
 void getResistance() {
   int i = 0;
   sensorVoltage = 0;
+  currentTime = micros();
+  //Serial.println(micros());
+  double timeElapsed = ((double)(currentTime - previousTime))/1000000;
+  //Serial.println(timeElapsed/1000000);
   for (i = 0; i < 4; i++) {
+    double resistanceMeasurement;
+    
     sensorVoltage = ads1.readADC_SingleEnded(i)*0.000125;
-    resistance[i]  = Rref * ((Vin / sensorVoltage)-1);
+    resistanceMeasurement = Rref * ((Vin / sensorVoltage)-1);
+    deltaResistance[i] = (resistance[i] - resistanceMeasurement)/timeElapsed;
+    resistance[i]  = resistanceMeasurement;
+    
     sensorVoltage = ads2.readADC_SingleEnded(i)*0.000125;
-    resistance[i+4] = Rref * ((Vin / sensorVoltage)-1);
-  }                                                                                                      
-//  Serial.print((String)resistance[0] + " - " + (String)resistance[1] + " - " + (String)resistance[2] + " - " + (String)resistance[3] + " - ");
-//  Serial.println((String)resistance[4] + " - " + (String)resistance[5] + " - " + (String)resistance[6] + " - " + (String)resistance[7]);
+    
+    resistanceMeasurement = Rref * ((Vin / sensorVoltage)-1);
+    //Serial.println((String)resistanceMeasurement + ":" + (String)resistance[i+4] + ":" + currentTime + ":" + previousTime+":" +(String)timeElapsed);
+    deltaResistance[i+4] = (resistance[i+4] - resistanceMeasurement)/timeElapsed;
+    resistance[i+4] = resistanceMeasurement;
+  }   
+  previousTime = currentTime;
+  //Serial.print((String)deltaResistance[0] + " - " + (String)deltaResistance[1] + " - " + (String)deltaResistance[2] + " - " + (String)deltaResistance[3] + " - ");
+  //Serial.println((String)deltaResistance[4] + " - " + (String)deltaResistance[5] + " - " + (String)deltaResistance[6] + " - " + (String)deltaResistance[7]);                                                                                                   
+  Serial.println(deltaResistance[0]);
 }
 
 void transmitPacket() {
@@ -167,8 +182,13 @@ void getUSBIndicator() {
 }
 
 String double2string(double n, int ndec) {
+    int nMultiplier = 1;
+    if (n < 0) {
+      nMultiplier = -1;
+      n = -n;
+    }
     if (ndec == 0) {
-      int nn = round(n);
+      int nn = round(n)*nMultiplier;
       return String(nn);
     }
     String r = "";
@@ -183,5 +203,6 @@ String double2string(double n, int ndec) {
         v = n;
         r += v;
     }
-    return r;
+    if (nMultiplier == -1) {return "-"+r;}
+    else {return r;}
 }
