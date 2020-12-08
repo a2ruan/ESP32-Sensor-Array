@@ -323,8 +323,13 @@ void sendData(String sheetName,String codex) {
 }
 
 String double2string(double n, int ndec) {
+    int nMultiplier = 1;
+    if (n < 0) {
+      nMultiplier = -1;
+      n = -n;
+    }
     if (ndec == 0) {
-      int nn = round(n);
+      int nn = round(n)*nMultiplier;
       return String(nn);
     }
     String r = "";
@@ -339,5 +344,6 @@ String double2string(double n, int ndec) {
         v = n;
         r += v;
     }
-    return r;
+    if (nMultiplier == -1) {return "-"+r;}
+    else {return r;}
 }
