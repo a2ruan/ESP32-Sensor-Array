@@ -84,7 +84,7 @@ void getResistance() {
   Serial.println(deltaResistance[0]);
 }
 
-void transmitPacket() {
+void transmitBLEPacket() {
   if (deviceConnected) {
       relativeTime = millis();
       String dataPacket = "";

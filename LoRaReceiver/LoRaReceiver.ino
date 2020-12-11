@@ -10,6 +10,29 @@ int lora_enable = 0;
 #include <string.h>
 #define BAND    915E6  //you can set band here directly,e.g. 868E6,915E6
 
+// BLE Transmission
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+String deviceName = "Gateway_1";
+BLEServer* pServer = NULL;
+BLECharacteristic* pCharacteristic = NULL;
+bool deviceConnected = false;
+bool oldDeviceConnected = false;
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+      BLEDevice::startAdvertising();
+    };
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+    }
+};
+
 // Firebase
 #include <WiFi.h>
 #include <FirebaseESP32.h>
@@ -29,7 +52,6 @@ const long  gmtOffset_sec = 3600;
 const int   daylightOffset_sec = 3600;
 
 String packet;
-String deviceName;
 int newConnect = 0;
 unsigned long relativeTime = 0;
 double resistance[8];
@@ -52,7 +74,6 @@ void codeForTask1( void * parameter )
           initializeData();
   }
 }
-
 
 void setup() {
   Heltec.begin(true /*DisplayEnable Enable*/, true /*Heltec.LoRa Disable*/, true /*Serial Enable*/, true /*PABOOST Enable*/, BAND /*long BAND*/);
@@ -85,10 +106,10 @@ void setup() {
   LoRa.setSpreadingFactor(7);
   Heltec.display->clear();
   Heltec.display->drawString(0, 0, "Success!");
-  Heltec.display->drawString(0, 10, "Connected to " + locale);
-  Heltec.display->drawString(0, 20, "Scanning for LoRA Broadcasts nearby...");
+  Heltec.display->drawString(0, 10, "Connected to: ");
+  Heltec.display->drawString(0, 20, locale);
+  Heltec.display->drawString(0, 30, "Scanning for LoRA...");
   Heltec.display->display();
-
 
    xTaskCreatePinnedToCore(
     codeForTask1,           /*Task Function. */
@@ -98,7 +119,20 @@ void setup() {
     1,                      /* proiority of the task. */
     &Task1,                 /* Task handel to keep tra ck of created task. */
     0);                     /* choose Core */  
-  
+  //BLE Transmission
+  const char* deviceNameC = deviceName.c_str();
+  BLEDevice::init(deviceNameC);
+//  pServer = BLEDevice::createServer();
+//  pServer->setCallbacks(new MyServerCallbacks());
+//  BLEService *pService = pServer->createService(SERVICE_UUID);
+//  pCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID,BLECharacteristic::PROPERTY_READ|BLECharacteristic::PROPERTY_WRITE|BLECharacteristic::PROPERTY_NOTIFY|BLECharacteristic::PROPERTY_INDICATE);
+//  pCharacteristic->addDescriptor(new BLE2902());
+//  pService->start();
+//  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+//  pAdvertising->addServiceUUID(SERVICE_UUID);
+//  pAdvertising->setScanResponse(false);
+//  pAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
+//  //BLEDevice::startAdvertising();
 }
 
 String getValue(String data, char separator, int index) {

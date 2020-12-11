@@ -1,6 +1,6 @@
 /*************** DECLARATIONS**************************/
 // Enables
-int BT_enable = 0;
+int BT_enable = 1;
 int lora_enable = 1;
 
 // Display
@@ -26,8 +26,8 @@ Adafruit_ADS1115 ads2(0x49);
 // Internal ADC
 const int usbSense = 36;
 const int batterySense = 37;
-double resistanceBattery1 = 120000;
-double resistanceBattery2 = 120000;
+double resistanceBattery1 = 100000;
+double resistanceBattery2 = 100000;
 double batteryLevel;
 boolean usbPluggedIn;
 
@@ -70,9 +70,9 @@ double Rref = 1500;          // Reference resistor's value in ohms (you can give
 
 // Buzzer
 const int buzzer = 23;
-int freq = 2000;
+int freq = 1000;
 int channel = 0;
-int resolution = 8;
+int resolution = 100;
 int buzzDelay = 0;
 
 // BLE Transmission
@@ -128,7 +128,8 @@ void setup() {
   ledcAttachPin(buzzer, channel);
 
   //BLE Transmission
-  BLEDevice::init("Gas Sensor 1");
+  const char* json = deviceName.c_str();
+  BLEDevice::init(json);
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
   BLEService *pService = pServer->createService(SERVICE_UUID);
@@ -158,8 +159,8 @@ void loop() {
   //DateTime now = rtc.now();
   //Serial.println((String)now.hour() + ":"+ (String)now.minute() + ":" + (String)now.second());
 
-  //setLed(2);
-  //setBuzzer(200,100);
+  setLed(1);
+  setBuzzer(300,200);
 
   getBatteryLevel();
   getUSBIndicator();
@@ -172,6 +173,6 @@ void loop() {
   getResistance();
   updatePPM();
 
-  if (BT_enable == 1) {transmitPacket();}
+  if (BT_enable == 1) {transmitBLEPacket();}
   if (lora_enable == 1) {transmitLORAPacket();}
 }
