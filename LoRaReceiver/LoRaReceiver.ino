@@ -1,6 +1,17 @@
+#include "EEPROM.h"
 #include "heltec.h"
 #include "images.h"
 #include <HTTPClient.h>
+
+// Credentials
+String WIFI_SSID = "199Russell";
+String WIFI_PASSWORD = "Mce7576s2te";
+String GOOGLE_SHEETS_ENABLE = "1"; // 1 = enabled, 0 = disabled
+String FIREBASE_ENABLE = "0"; // 1 = enabled,  0 = disabled
+String GOOGLE_SCRIPT_ID = "AKfycbwuRsl_vnO6jB8m-IcXgFQaCaF-7UTydW8CPirmV1G2nzcwfbId";
+String FIREBASE_HOST = "graphene-pcb-01.firebaseio.com";
+String FIREBASE_AUTH = "xBwc6woVX1si03ByKGmgjbozxS9w7raAIZhWtD4G";
+
 // Enables
 int BT_enable = 0;
 int lora_enable = 0;
@@ -10,36 +21,16 @@ int lora_enable = 0;
 #include <string.h>
 #define BAND    915E6  //you can set band here directly,e.g. 868E6,915E6
 
-// BLE Transmission
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
+// Bluetooth Classic
 String deviceName = "Gateway_1";
-BLEServer* pServer = NULL;
-BLECharacteristic* pCharacteristic = NULL;
-bool deviceConnected = false;
-bool oldDeviceConnected = false;
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-
-class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
-      BLEDevice::startAdvertising();
-    };
-    void onDisconnect(BLEServer* pServer) {
-      deviceConnected = false;
-    }
-};
+#include "BluetoothSerial.h"
+BluetoothSerial SerialBT;
+char incomingBluetoothPacket;
 
 // Firebase
 #include <WiFi.h>
 #include <FirebaseESP32.h>
-#define FIREBASE_HOST "graphene-pcb-01.firebaseio.com"
-#define FIREBASE_AUTH "xBwc6woVX1si03ByKGmgjbozxS9w7raAIZhWtD4G"
-#define WIFI_SSID "199Russell"
-#define WIFI_PASSWORD "Mce7576s2t"
+
 String locale;
 FirebaseData firebaseData;
 //#define WIFI_SSID "Esp32"
@@ -60,7 +51,7 @@ double temperature = 0;
 double humidity = 0;
 double ppm = 0;
 String timeStamp;
-String GOOGLE_SCRIPT_ID = "AKfycbwuRsl_vnO6jB8m-IcXgFQaCaF-7UTydW8CPirmV1G2nzcwfbId";
+
 
 // Multithreading (to speed up HTTPS writes)
 TaskHandle_t Task1;
@@ -68,7 +59,6 @@ TaskHandle_t Task1;
 void codeForTask1( void * parameter )
 {
   for(;;) {
-          
           Serial.print("This Task run on Core: ");
           Serial.println(xPortGetCoreID());
           initializeData();
@@ -76,30 +66,42 @@ void codeForTask1( void * parameter )
 }
 
 void setup() {
-  Heltec.begin(true /*DisplayEnable Enable*/, true /*Heltec.LoRa Disable*/, true /*Serial Enable*/, true /*PABOOST Enable*/, BAND /*long BAND*/);
-  Heltec.display->flipScreenVertically();
   Serial.begin(115200);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  //Serial.print("Connecting to Wi-Fi");
+  Heltec.begin(true, true , true, true , BAND ); // display, lora, serial, paboost, band
+  Heltec.display->flipScreenVertically();
   Heltec.display->clear();
   Heltec.display->drawString(0, 0, "Connecting to Wifi...");
   Heltec.display->display();
-  while (WiFi.status() != WL_CONNECTED) {
-    //WiFi.reconnect();
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.begin(WIFI_SSID.c_str(), WIFI_PASSWORD.c_str());
+  for (int i = 0; i < 8; i++) {
+    WiFi.begin(WIFI_SSID.c_str(), WIFI_PASSWORD.c_str());
     delay(600);
   }
-  //Serial.println();
-  //Serial.print("Connected with IP: ");
+  if (WiFi.status() != WL_CONNECTED) {  
+    if (!EEPROM.begin(1000)) {
+    Serial.println("Failed to initialise EEPROM.  Restarting..");
+    delay(400);
+    ESP.restart();
+  }
+    String ssid_sto = EEPROM.readString(0);
+    String password_sto = EEPROM.readString(100);
+    ssid_sto.trim();
+    password_sto.trim();
+    for (int i = 0; i < 8; i++) {
+      WiFi.begin(ssid_sto.c_str(), password_sto.c_str());
+      delay(600);
+    }
+  }
+  if (WiFi.status() != WL_CONNECTED) {  
+     reconnectWifi();
+  }
   locale = WiFi.localIP().toString();
-  //Serial.println(locale);
-  //Serial.println();
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
   Firebase.reconnectWiFi(true);
   if(Firebase.setInt(firebaseData, "/Status", 1)) {Serial.println("Set int data success");} 
   else {
-    //Serial.print("Error in setInt, ");
-    //Serial.println(firebaseData.errorReason());
+    Serial.print("Error in setInt, ");
+    Serial.println(firebaseData.errorReason());
   }
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   printLocalTime();
@@ -110,29 +112,90 @@ void setup() {
   Heltec.display->drawString(0, 20, locale);
   Heltec.display->drawString(0, 30, "Scanning for LoRA...");
   Heltec.display->display();
+  xTaskCreatePinnedToCore(codeForTask1,"Task_1",20000,NULL,1,&Task1,0);
+}
 
-   xTaskCreatePinnedToCore(
-    codeForTask1,           /*Task Function. */
-    "Task_1",               /*name of task. */
-    20000,                   /*Stack size of task. */
-    NULL,                   /* parameter of the task. */
-    1,                      /* proiority of the task. */
-    &Task1,                 /* Task handel to keep tra ck of created task. */
-    0);                     /* choose Core */  
-  //BLE Transmission
-  const char* deviceNameC = deviceName.c_str();
-  BLEDevice::init(deviceNameC);
-//  pServer = BLEDevice::createServer();
-//  pServer->setCallbacks(new MyServerCallbacks());
-//  BLEService *pService = pServer->createService(SERVICE_UUID);
-//  pCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID,BLECharacteristic::PROPERTY_READ|BLECharacteristic::PROPERTY_WRITE|BLECharacteristic::PROPERTY_NOTIFY|BLECharacteristic::PROPERTY_INDICATE);
-//  pCharacteristic->addDescriptor(new BLE2902());
-//  pService->start();
-//  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-//  pAdvertising->addServiceUUID(SERVICE_UUID);
-//  pAdvertising->setScanResponse(false);
-//  pAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
-//  //BLEDevice::startAdvertising();
+void reconnectWifi() {
+  if (!EEPROM.begin(1000)) {
+    Serial.println("Failed to initialise EEPROM.  Restarting..");
+    delay(400);
+    ESP.restart();
+  }
+  String ssid = EEPROM.readString(0);
+  String password = EEPROM.readString(100);
+  ssid.trim();
+  password.trim();
+  Heltec.display->clear();
+  Heltec.display->drawString(0, 0, "Reconnect WiFi via app");
+  Heltec.display->drawString(0, 10, "Available as Bluetooth Serial");
+  Heltec.display->drawString(0, 20, "on the google play app store");
+  Heltec.display->display();
+  String message = "";
+  SerialBT.begin(deviceName);
+  while (WiFi.status() != WL_CONNECTED) {
+    if (SerialBT.available()){
+        message = SerialBT.readString();
+        message.replace(" ", "");
+        Serial.println(message);
+        if (message.length() > 4 && message.indexOf("=") > 0) {
+          String command = message.substring(0,message.indexOf("="));
+          command.toLowerCase();
+          Serial.println(command);
+          if (command == "ssid") {
+            EEPROM.writeString(0,message.substring(message.indexOf("=")+1,message.length()));
+            delay(100);
+            EEPROM.commit();
+            ssid = EEPROM.readString(0);
+            ssid.trim();
+
+          }
+          else if (command == "pw") {
+            EEPROM.writeString(100,message.substring(message.indexOf("=")+1,message.length()));
+            delay(100);
+            EEPROM.commit();
+            password = EEPROM.readString(100);
+            password.trim();
+          }
+          else if (command == "connect") {
+            int tries = 0;
+            int maxTries = 15;
+            while (WiFi.status() != WL_CONNECTED && tries < maxTries) {
+              Heltec.display->clear();
+              Heltec.display->drawString(0, 0, "Reconnect Attempts: " + (String)tries);
+              Heltec.display->display();
+              ssid = EEPROM.readString(0);
+              ssid.trim();
+              password = EEPROM.readString(100);
+              password.trim();
+              WiFi.begin(ssid.c_str(), password.c_str());
+              tries = tries + 1;
+              delay(600);
+            }
+          }
+        }
+        if (WiFi.status() != WL_CONNECTED) {
+          Heltec.display->clear();
+          Heltec.display->drawString(0, 0, "Connected to Bluetooth!");
+          Heltec.display->drawString(0, 10, "Connect to wifi using");
+          Heltec.display->drawString(0, 20, "the following commands:");
+          Heltec.display->drawString(0, 30, "[1] ssid=" + ssid);
+          Heltec.display->drawString(0, 40, "[2] pw=" + password);
+          Heltec.display->drawString(0, 50, "[3] connect=1");
+          Heltec.display->display();
+        }
+        else {
+          EEPROM.writeString(0,ssid);
+          EEPROM.writeString(100,password);
+          Heltec.display->clear();
+          Heltec.display->drawString(0, 0, "Connected to WiFi!");
+          Heltec.display->display();
+        }
+   }
+  } 
+    delay(200);
+    Serial.println(WiFi.status());
+    SerialBT.flush();
+    SerialBT.end();
 }
 
 String getValue(String data, char separator, int index) {
@@ -206,8 +269,8 @@ void displayData() {
 }
 
 void loop() {
+  delay(500);
   int packetSize = Heltec.LoRa.parsePacket();
-  Serial.println("Packet Size:" + (String)packetSize);
   if (packetSize) {
     while (Heltec.LoRa.available()) {
       Heltec.display->clear();

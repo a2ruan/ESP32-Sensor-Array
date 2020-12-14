@@ -20,8 +20,8 @@ RTC_DS3231 rtc;
 // External ADC
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
-Adafruit_ADS1115 ads1(0x48);
-Adafruit_ADS1115 ads2(0x49);
+Adafruit_ADS1115 ads1(0x49);
+Adafruit_ADS1115 ads2(0x48);
 
 // Internal ADC
 const int usbSense = 36;
@@ -94,19 +94,15 @@ class MyServerCallbacks: public BLEServerCallbacks {
 };
 
 void setup() {
-//  resistance[0] = 0, resistance[1] = 0, resistance[2]=0, resistance[3] = 0, resistance[4]=0;
-//  deltaResistance[0] = 0, deltaResistance[1] = 0, deltaResistance[2]=0, deltaResistance[3] = 0, deltaResistance[4]=0;
-  
   // DISPLAY
   Serial.begin(115200);
   Heltec.begin(true /*DisplayEnable Enable*/, true /*Heltec.Heltec.Heltec.LoRa Disable*/, true /*Serial Enable*/, true /*PABOOST Enable*/, BAND /*long BAND*/);
   Heltec.display->flipScreenVertically();
-  
   // External ADC
   ads1.setGain(GAIN_ONE);
   ads1.begin();
-  ads2.setGain(GAIN_ONE);
-  ads2.begin();
+//  ads2.setGain(GAIN_ONE);
+//  ads2.begin();
   // Internal ADC
   pinMode(usbSense, INPUT);
   pinMode(batterySense, INPUT);
@@ -164,8 +160,11 @@ void loop() {
 
   getBatteryLevel();
   getUSBIndicator();
-  
+  //int randNumber = random(271, 275); 
+  //temperature = (double)randNumber / 10;
   temperature = hdc1080.readTemperature();
+  //randNumber = random(356, 362); 
+  //humidity = (double)randNumber / 10;
   humidity = hdc1080.readHumidity();
   if (temperature > 120 || humidity > 90) { // Resync temperature if required
     hdc1080.begin(0x40);
