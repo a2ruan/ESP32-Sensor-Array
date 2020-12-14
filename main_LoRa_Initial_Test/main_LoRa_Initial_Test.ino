@@ -1,4 +1,3 @@
-/*************** DECLARATIONS**************************/
 // Enables
 int BT_enable = 1;
 int lora_enable = 1;
@@ -101,8 +100,7 @@ void setup() {
   // External ADC
   ads1.setGain(GAIN_ONE);
   ads1.begin();
-//  ads2.setGain(GAIN_ONE);
-//  ads2.begin();
+  
   // Internal ADC
   pinMode(usbSense, INPUT);
   pinMode(batterySense, INPUT);
@@ -147,31 +145,25 @@ void setup() {
   previousTime = micros();
 }
 
+/**
+ * Main Loop
+ */
 void loop() {
+  // Update display and peripheral indicator lights/buzzer
   Heltec.display->clear();
   displayData();
   Heltec.display->display();
-  
-  //DateTime now = rtc.now();
-  //Serial.println((String)now.hour() + ":"+ (String)now.minute() + ":" + (String)now.second());
-
   setLed(1);
   setBuzzer(300,200);
-
   getBatteryLevel();
   getUSBIndicator();
-  //int randNumber = random(271, 275); 
-  //temperature = (double)randNumber / 10;
   temperature = hdc1080.readTemperature();
-  //randNumber = random(356, 362); 
-  //humidity = (double)randNumber / 10;
   humidity = hdc1080.readHumidity();
-  if (temperature > 120 || humidity > 90) { // Resync temperature if required
+  if (temperature > 120 || humidity > 90) { // Check if HDC1080 is disconnected, and restart if necessary
     hdc1080.begin(0x40);
   }
   getResistance();
   updatePPM();
-
   if (BT_enable == 1) {transmitBLEPacket();}
   if (lora_enable == 1) {transmitLORAPacket();}
 }

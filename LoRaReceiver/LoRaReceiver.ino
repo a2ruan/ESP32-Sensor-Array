@@ -29,12 +29,9 @@ char incomingBluetoothPacket;
 
 // Firebase
 #include <WiFi.h>
-#include <FirebaseESP32.h>
-
 String locale;
+#include <FirebaseESP32.h>
 FirebaseData firebaseData;
-//#define WIFI_SSID "Esp32"
-//#define WIFI_PASSWORD "miniclip"
 
 // Time
 #include "time.h"
@@ -42,6 +39,7 @@ const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 3600;
 const int   daylightOffset_sec = 3600;
 
+// LoRA Packet Formatting
 String packet;
 int newConnect = 0;
 unsigned long relativeTime = 0;
@@ -52,31 +50,41 @@ double humidity = 0;
 double ppm = 0;
 String timeStamp;
 
+#define ARRAYSIZE 10
+String sendCodeStack[ARRAYSIZE] = {""};
 
-// Multithreading (to speed up HTTPS writes)
+// Google Sheets Packet Outgoing
+
+/**
+ * Second main loop running on dual core processor Core 0;
+ * This enables asynchronous communication with Google sheets
+ */
 TaskHandle_t Task1;
-
-void codeForTask1( void * parameter )
-{
+void codeForTask1( void * parameter ) {
   for(;;) {
           Serial.print("This Task run on Core: ");
           Serial.println(xPortGetCoreID());
-          initializeData();
+          sendToSheets();
   }
 }
 
 void setup() {
+  // Initialize device
   Serial.begin(115200);
   Heltec.begin(true, true , true, true , BAND ); // display, lora, serial, paboost, band
   Heltec.display->flipScreenVertically();
   Heltec.display->clear();
   Heltec.display->drawString(0, 0, "Connecting to Wifi...");
   Heltec.display->display();
+  
+  // Begin Wifi Reconnection using default WIFI password/user
   WiFi.begin(WIFI_SSID.c_str(), WIFI_PASSWORD.c_str());
   for (int i = 0; i < 8; i++) {
     WiFi.begin(WIFI_SSID.c_str(), WIFI_PASSWORD.c_str());
     delay(600);
   }
+  
+  //Begin Wifi Reconnection using STORED MEMORY WIFI password/user
   if (WiFi.status() != WL_CONNECTED) {  
     if (!EEPROM.begin(1000)) {
     Serial.println("Failed to initialise EEPROM.  Restarting..");
@@ -92,9 +100,11 @@ void setup() {
       delay(600);
     }
   }
-  if (WiFi.status() != WL_CONNECTED) {  
-     reconnectWifi();
-  }
+  
+  // Prompt user to reenter Wifi credentials using bluetooth
+  if (WiFi.status() != WL_CONNECTED) {reconnectWifi();}
+  
+  // Begin firebase connection
   locale = WiFi.localIP().toString();
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
   Firebase.reconnectWiFi(true);
@@ -103,8 +113,12 @@ void setup() {
     Serial.print("Error in setInt, ");
     Serial.println(firebaseData.errorReason());
   }
+
+  // Get most recent time from internet
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   printLocalTime();
+  
+  // Start receieving transmission and update UI screen
   LoRa.setSpreadingFactor(7);
   Heltec.display->clear();
   Heltec.display->drawString(0, 0, "Success!");
@@ -115,6 +129,10 @@ void setup() {
   xTaskCreatePinnedToCore(codeForTask1,"Task_1",20000,NULL,1,&Task1,0);
 }
 
+/**
+ * Bluetooth feature that prompts user to change the Wifi username and password if invalid
+ * If connection is successful, the Wifi username and password will be replaced by the new one, in EEPROM
+ */
 void reconnectWifi() {
   if (!EEPROM.begin(1000)) {
     Serial.println("Failed to initialise EEPROM.  Restarting..");
@@ -198,6 +216,10 @@ void reconnectWifi() {
     SerialBT.end();
 }
 
+/**
+ * Returns a substring of a mainstring based on index number and the seperator
+ * E.x A1/B2/C3    If using a "/" seperator, the 2nd term would be "B2".
+ */
 String getValue(String data, char separator, int index) {
     int found = 0;
     int strIndex[] = { 0, -1 };
@@ -212,13 +234,16 @@ String getValue(String data, char separator, int index) {
     return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
 
+/**
+ * FIREBASE
+ * Sends local variables to Firebase
+ */
 void updateFirebase() {
   printLocalTime();
   if (newConnect == 0) {
     Firebase.setString(firebaseData, "/Status/" + deviceName, timeStamp);
   }
   newConnect = 1;
-  Serial.println("hi----");
   Firebase.setString(firebaseData, deviceName + "/" + timeStamp + "/device_Name", deviceName);
   Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/relativeTime", relativeTime);
   Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/Temperature", temperature);
@@ -231,60 +256,59 @@ void updateFirebase() {
   Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/delta_Resistance_3", deltaResistance[2]);
   Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/Resistance_4", resistance[3]);
   Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/delta_Resistance_4", deltaResistance[3]);
-  Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/Resistance_5", resistance[4]);
-  Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/delta_Resistance_5", deltaResistance[4]);
-  Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/Resistance_6", resistance[5]);
-  Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/delta_Resistance_6", deltaResistance[5]);
-  Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/Resistance_7", resistance[6]);
-  Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/delta_Resistance_7", deltaResistance[6]);
-  Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/Resistance_8", resistance[7]);
-  Firebase.setDouble(firebaseData, deviceName + "/" + timeStamp +  "/delta_Resistance_8", deltaResistance[7]);
 }
 
+/**
+ * Displays variables to Heltec OLED Screen
+ */
 void displayData() {
   int x = 0; int y = 0;
   Heltec.display->drawXbm(x, y, Wifi_on_width, Wifi_on_height, Wifi_on_bits);
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
   Heltec.display->setFont(ArialMT_Plain_10);
   Heltec.display->drawString(x+15, y, "IP:"+locale);
-  Heltec.display->drawLine(62, 22,62, 80);
   Heltec.display->drawString(x, y + 10, "T=" + double2string(temperature,1) + "°C");
   Heltec.display->drawString(x+65, y + 10, "RH=" + double2string(humidity,0) + "%");
-  Heltec.display->drawString(x, y + 20, "R1:" + double2string(resistance[0],0));
-  Heltec.display->drawString(x, y + 30, "R2:" + double2string(resistance[1],0));
-  Heltec.display->drawString(x, y + 40, "R3:" + double2string(resistance[2],0));
-  Heltec.display->drawString(x, y + 50, "R4:" + double2string(resistance[3],0));
-  Heltec.display->drawString(x+40, y + 20, "[" + double2string(deltaResistance[0],1) + "]");
-  Heltec.display->drawString(x+40, y + 30, "[" + double2string(deltaResistance[1],1) + "]");
-  Heltec.display->drawString(x+40, y + 40, "[" + double2string(deltaResistance[2],1) + "]");
-  Heltec.display->drawString(x+40, y + 50, "[" + double2string(deltaResistance[3],1) + "]");
-  Heltec.display->drawString(x+65, y + 20, "R5:" + double2string(resistance[4],0));
-  Heltec.display->drawString(x+65, y + 30, "R6:" + double2string(resistance[5],0));
-  Heltec.display->drawString(x+65, y + 40, "R7:" + double2string(resistance[6],0));
-  Heltec.display->drawString(x+65, y + 50, "R8:" + double2string(resistance[7],0));
-  Heltec.display->drawString(x+105, y + 20, "[" + double2string(deltaResistance[4],1) + "]");
-  Heltec.display->drawString(x+105, y + 30, "[" + double2string(deltaResistance[5],1) + "]");
-  Heltec.display->drawString(x+105, y + 40, "[" + double2string(deltaResistance[6],1) + "]");
-  Heltec.display->drawString(x+105, y + 50, "[" + double2string(deltaResistance[7],1) + "]");
+  Heltec.display->drawString(x, y + 20, "R1:" + double2string(resistance[0],2));
+  Heltec.display->drawString(x, y + 30, "R2:" + double2string(resistance[1],2));
+  Heltec.display->drawString(x, y + 40, "R3:" + double2string(resistance[2],2));
+  Heltec.display->drawString(x, y + 50, "R4:" + double2string(resistance[3],2));
+  Heltec.display->drawString(x+70, y + 20, "[" + double2string(deltaResistance[0],2) + "]");
+  Heltec.display->drawString(x+70, y + 30, "[" + double2string(deltaResistance[1],2) + "]");
+  Heltec.display->drawString(x+70, y + 40, "[" + double2string(deltaResistance[2],2) + "]");
+  Heltec.display->drawString(x+70, y + 50, "[" + double2string(deltaResistance[3],2) + "]");
 }
 
+/**
+ * Main Loop
+ */
+String previousRaw;
 void loop() {
-  delay(500);
+  delay(100);
   int packetSize = Heltec.LoRa.parsePacket();
   if (packetSize) {
     while (Heltec.LoRa.available()) {
       Heltec.display->clear();
       displayData();
       Heltec.display->display();
+      
       String packetRaw = Heltec.LoRa.readString();
-      updateVariables(packetRaw);
-      //initializeData();
+      if (previousRaw != packetRaw) {
+        previousRaw = packetRaw;
+        updateVariables(packetRaw);
+      }
+
+      // Uncomment this code if you wish to upload to Firebase
+      //updateVariables();
       //updateFirebase();
-      Serial.println("Main loop runs on Core:" + (String)xPortGetCoreID());
     }
   }
 }
-  
+
+/**
+ * FIREBASE
+ * Retrieves real time clock data from the internet and stores as a string
+ */
 void printLocalTime() {
   time_t rawtime;
   struct tm timeinfo;
@@ -298,8 +322,13 @@ void printLocalTime() {
   timeStamp = (String)timeStringBuff;
 }
 
+/**
+ * LORA
+ * Retrieve LoRa transmission and store values to local variables
+ * Decodes the LoRa transmission packet using delimited "/"
+ */
 void updateVariables(String packet) {
-  String tempVal = getValue(packet,'/',0);
+      String tempVal = getValue(packet,'/',0);      
       tempVal.remove(0,1);
       deviceName = tempVal;
       
@@ -317,108 +346,115 @@ void updateVariables(String packet) {
 
       tempVal = getValue(packet,'/',4);
       tempVal.remove(0,1);
+      ppm = tempVal.toDouble();
+
+      tempVal = getValue(packet,'/',5);
+      tempVal.remove(0,1);
       resistance[0] = tempVal.toDouble();
       
-      tempVal = getValue(packet,'/',5);
+      tempVal = getValue(packet,'/',6);
       tempVal.remove(0,1);
       deltaResistance[0] = tempVal.toDouble();
 
-      tempVal = getValue(packet,'/',6);
+      tempVal = getValue(packet,'/',7);
       tempVal.remove(0,1);
       resistance[1] = tempVal.toDouble();
       
-      tempVal = getValue(packet,'/',7);
+      tempVal = getValue(packet,'/',8);
       tempVal.remove(0,1);
       deltaResistance[1] = tempVal.toDouble();
 
-      tempVal = getValue(packet,'/',8);
+      tempVal = getValue(packet,'/',9);
       tempVal.remove(0,1);
       resistance[2] = tempVal.toDouble();
       
-      tempVal = getValue(packet,'/',9);
+      tempVal = getValue(packet,'/',10);
       tempVal.remove(0,1);
       deltaResistance[2] = tempVal.toDouble();
 
-      tempVal = getValue(packet,'/',10);
+      tempVal = getValue(packet,'/',11);
       tempVal.remove(0,1);
       resistance[3] = tempVal.toDouble();
       
-      tempVal = getValue(packet,'/',11);
+      tempVal = getValue(packet,'/',12);
       tempVal.remove(0,1);
       deltaResistance[3] = tempVal.toDouble();
 
-      tempVal = getValue(packet,'/',12);
-      tempVal.remove(0,1);
-      resistance[4] = tempVal.toDouble();
-      
-      tempVal = getValue(packet,'/',13);
-      tempVal.remove(0,1);
-      deltaResistance[4] = tempVal.toDouble();
-
-      tempVal = getValue(packet,'/',14);
-      tempVal.remove(0,1);
-      resistance[5] = tempVal.toDouble();
-      
-      tempVal = getValue(packet,'/',15);
-      tempVal.remove(0,1);
-      deltaResistance[5] = tempVal.toDouble();
-
-      tempVal = getValue(packet,'/',16);
-      tempVal.remove(0,1);
-      resistance[6] = tempVal.toDouble();
-      
-      tempVal = getValue(packet,'/',17);
-      tempVal.remove(0,1);
-      deltaResistance[6] = tempVal.toDouble();
-
-      tempVal = getValue(packet,'/',18);
-      tempVal.remove(0,1);
-      resistance[7] = tempVal.toDouble();
-      
-      tempVal = getValue(packet,'/',19);
-      tempVal.remove(0,1);
-      deltaResistance[7] = tempVal.toDouble();
-
-      tempVal = getValue(packet,'/',20);
-      tempVal.remove(0,1);
-      ppm = tempVal.toDouble();
-
+      String sendCodeNewStack = "";
+      sendCodeNewStack = sendCodeNewStack + "&" + "Temperature=" + temperature;
+      sendCodeNewStack = sendCodeNewStack + "&" + "Humidity=" + humidity;
+      sendCodeNewStack = sendCodeNewStack + "&" + "R1=" + resistance[0];
+      sendCodeNewStack = sendCodeNewStack + "&" + "dR1=" + deltaResistance[0];
+      sendCodeNewStack = sendCodeNewStack + "&" + "R2=" + resistance[1];
+      sendCodeNewStack = sendCodeNewStack + "&" + "dR2=" + deltaResistance[1];
+      sendCodeNewStack = sendCodeNewStack + "&" + "R3=" + resistance[2];
+      sendCodeNewStack = sendCodeNewStack + "&" + "dR3=" + deltaResistance[2];
+      sendCodeNewStack = sendCodeNewStack + "&" + "R4=" + resistance[3];
+      sendCodeNewStack = sendCodeNewStack + "&" + "dR4=" + deltaResistance[3];
+      //Serial.println("1");
+      // Shift stack
+      String sendCodeStackOld[ARRAYSIZE];
+      for (int i = 0; i < ARRAYSIZE; i++) {
+        sendCodeStackOld[i] = sendCodeStack[i];
+      }
+      for (int i = 0; i < ARRAYSIZE-1; i++) {
+        sendCodeStack[i+1] = sendCodeStackOld[i];
+      }
+      sendCodeStack[0] = sendCodeNewStack;
+      for (int i = 0; i < ARRAYSIZE; i++) {
+        //Serial.println("i:" + (String)i + "---" + sendCodeStack[i]);
+      }
+      //Serial.println("-------------------------");
 }
 
-void initializeData() {
+/**
+ * LORA
+ * Send data to google sheet with specified Google Script ID using HTML.get request
+ * @sheetName is the name of the sheet within the Google docs to write to
+ * @sendCode is the variable names and values encoded using Google script formatting
+ */
+void sendToSheets() {
+  // Initialize Data
+  // Get stack count
   String sendCode = "";
-  sendCode = sendCode + "&" + "Temperature=" + temperature;
-  sendCode = sendCode + "&" + "Humidity=" + humidity;
-  sendCode = sendCode + "&" + "R1=" + resistance[0];
-  sendCode = sendCode + "&" + "dR1=" + deltaResistance[0];
-  sendCode = sendCode + "&" + "R2=" + resistance[1];
-  sendCode = sendCode + "&" + "dR2=" + deltaResistance[1];
-  sendCode = sendCode + "&" + "R3=" + resistance[2];
-  sendCode = sendCode + "&" + "dR3=" + deltaResistance[2];
-  sendCode = sendCode + "&" + "R4=" + resistance[3];
-  sendCode = sendCode + "&" + "dR4=" + deltaResistance[3];
-  sendCode = sendCode + "&" + "R5=" + resistance[4];
-  sendCode = sendCode + "&" + "dR5=" + deltaResistance[4];
-  sendCode = sendCode + "&" + "R6=" + resistance[5];
-  sendCode = sendCode + "&" + "dR6=" + deltaResistance[5];
-  sendCode = sendCode + "&" + "R7=" + resistance[6];
-  sendCode = sendCode + "&" + "dR7=" + deltaResistance[6];
-  sendCode = sendCode + "&" + "R8=" + resistance[7];
-  sendCode = sendCode + "&" + "dR8=" + deltaResistance[7];
-  sendData("Data",sendCode);
-}
+  int stackCount = 0;
+  for (int i = 0; i < ARRAYSIZE; i++) {
+    //Serial.println("i=" + (String)i);
+    if (sendCodeStack[i] != "") {stackCount = stackCount + 1;} 
+  }
+//Serial.println("4");
+  // Prepare sendCode
+  for (int i = 0; i < stackCount; i++) {
+    //Serial.println("BEFORE:"+sendCodeStack[i]);
+    sendCodeStack[i].replace("&","&row"+(String)i);
+    //Serial.println("AFTER:"+(String)i+"--"+sendCodeStack[i]);
+    sendCode = sendCode + sendCodeStack[i];
+  }
+  Serial.println("FINAL:"+sendCode);
+  //Serial.println("5");
+  // Reset Stack to blank characters
+  for (int i = 0; i < ARRAYSIZE; i++) {
+    sendCodeStack[i] = "";
+  }
 
-void sendData(String sheetName,String codex) {
-    //Serial.println("XX:" + (String)millis());
-   HTTPClient http;
-   String url="https://script.google.com/macros/s/"+GOOGLE_SCRIPT_ID+"/exec?id=" + sheetName +codex;
+  if (sendCode != "") {
+    //Serial.println("6");
+    //Serial.println("Sendcode= " + sendCode);
+    // Send Data
+    String sheetName = "Data"; // Name of the sheet inside the Google sheets workbook
+    HTTPClient http;
+    String url="https://script.google.com/macros/s/"+GOOGLE_SCRIPT_ID+"/exec?id=" + sheetName +sendCode;
     Serial.println(url);
     http.begin(url); //Specify the URL and certificate
     int httpCode = http.GET();  
-    //String httpCode = (String)http.getString();  
     http.end();
+  }
+  else {delay(500);}
 }
 
+/**
+ * Convert a double to a string with a specified number of decimal places
+ */
 String double2string(double n, int ndec) {
     int nMultiplier = 1;
     if (n < 0) {
