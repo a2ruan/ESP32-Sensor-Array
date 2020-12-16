@@ -1,0 +1,4 @@
+https://resource.heltec.cn/download/package_heltec_esp32_index.json
+https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+http://www.pjrc.com/teensy/td_libs_DS1307RTC.html
+
