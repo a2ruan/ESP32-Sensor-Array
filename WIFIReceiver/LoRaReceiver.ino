@@ -10,6 +10,7 @@ String WIFI_PASSWORD = "Mce7576s2te";
 String GOOGLE_SHEETS_ENABLE = "1"; // 1 = enabled, 0 = disabled
 String FIREBASE_ENABLE = "0"; // 1 = enabled,  0 = disabled
 String GOOGLE_SCRIPT_ID = "AKfycbwuRsl_vnO6jB8m-IcXgFQaCaF-7UTydW8CPirmV1G2nzcwfbId";
+String sheetName = "Data"; // Name of the sheet inside the Google sheets workbook
 String FIREBASE_HOST = "graphene-pcb-01.firebaseio.com";
 String FIREBASE_AUTH = "xBwc6woVX1si03ByKGmgjbozxS9w7raAIZhWtD4G";
 
@@ -461,7 +462,6 @@ void sendToSheets() {
   }
 
   if (sendCode != "") {
-    String sheetName = "Data"; // Name of the sheet inside the Google sheets workbook
     HTTPClient http;
     String url="https://script.google.com/macros/s/"+GOOGLE_SCRIPT_ID+"/exec?id=" + sheetName +sendCode;
     Serial.println(url);
