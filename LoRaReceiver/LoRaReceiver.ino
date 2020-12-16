@@ -4,6 +4,7 @@
 #include <HTTPClient.h>
 
 // Credentials
+String deviceName = "Gateway_1";
 String WIFI_SSID = "199Russell";
 String WIFI_PASSWORD = "Mce7576s2te";
 String GOOGLE_SHEETS_ENABLE = "1"; // 1 = enabled, 0 = disabled
@@ -22,7 +23,6 @@ int lora_enable = 0;
 #define BAND    915E6  //you can set band here directly,e.g. 868E6,915E6
 
 // Bluetooth Classic
-String deviceName = "Gateway_1";
 #include "BluetoothSerial.h"
 BluetoothSerial SerialBT;
 char incomingBluetoothPacket;
@@ -48,11 +48,31 @@ double deltaResistance[8];
 double temperature = 0;
 double humidity = 0;
 double ppm = 0;
+String dateStamp;
 String timeStamp;
-
 #define ARRAYSIZE 10
 String sendCodeStack[ARRAYSIZE] = {""};
 
+// BLE Transmission
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+BLEServer* pServer = NULL;
+BLECharacteristic* pCharacteristic = NULL;
+bool deviceConnected = false;
+bool oldDeviceConnected = false;
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+      BLEDevice::startAdvertising();
+    };
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+    }
+};
 // Google Sheets Packet Outgoing
 
 /**
@@ -62,8 +82,8 @@ String sendCodeStack[ARRAYSIZE] = {""};
 TaskHandle_t Task1;
 void codeForTask1( void * parameter ) {
   for(;;) {
-          Serial.print("This Task run on Core: ");
-          Serial.println(xPortGetCoreID());
+          //Serial.print("This Task run on Core: ");
+          //Serial.println(xPortGetCoreID());
           sendToSheets();
   }
 }
@@ -313,12 +333,14 @@ void printLocalTime() {
   time_t rawtime;
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)) {
-   Serial.println("Failed to obtain time");
+   //Serial.println("Failed to obtain time");
    return;
   }
   char timeStringBuff[50]; //50 chars should be enough
-  strftime(timeStringBuff, sizeof(timeStringBuff), "%A, %B %d %Y %H:%M:%S", &timeinfo);
-  Serial.println(timeStringBuff);
+  strftime(timeStringBuff, sizeof(timeStringBuff), "%m- %d- %Y", &timeinfo);
+  //Serial.println(timeStringBuff);
+  dateStamp = (String)timeStringBuff;
+  strftime(timeStringBuff, sizeof(timeStringBuff), "%H:%M:%S", &timeinfo);
   timeStamp = (String)timeStringBuff;
 }
 
@@ -381,6 +403,11 @@ void updateVariables(String packet) {
       deltaResistance[3] = tempVal.toDouble();
 
       String sendCodeNewStack = "";
+      printLocalTime();
+      dateStamp.replace(" ","");
+      timeStamp.replace(" ","");
+      sendCodeNewStack = sendCodeNewStack + "&" + "DateCode=" + dateStamp;
+      sendCodeNewStack = sendCodeNewStack + "&" + "TimeCode=" + timeStamp;
       sendCodeNewStack = sendCodeNewStack + "&" + "Temperature=" + temperature;
       sendCodeNewStack = sendCodeNewStack + "&" + "Humidity=" + humidity;
       sendCodeNewStack = sendCodeNewStack + "&" + "R1=" + resistance[0];
@@ -414,7 +441,6 @@ void updateVariables(String packet) {
  * @sendCode is the variable names and values encoded using Google script formatting
  */
 void sendToSheets() {
-  // Initialize Data
   // Get stack count
   String sendCode = "";
   int stackCount = 0;
@@ -422,7 +448,6 @@ void sendToSheets() {
     //Serial.println("i=" + (String)i);
     if (sendCodeStack[i] != "") {stackCount = stackCount + 1;} 
   }
-//Serial.println("4");
   // Prepare sendCode
   for (int i = 0; i < stackCount; i++) {
     //Serial.println("BEFORE:"+sendCodeStack[i]);
@@ -430,17 +455,12 @@ void sendToSheets() {
     //Serial.println("AFTER:"+(String)i+"--"+sendCodeStack[i]);
     sendCode = sendCode + sendCodeStack[i];
   }
-  Serial.println("FINAL:"+sendCode);
-  //Serial.println("5");
   // Reset Stack to blank characters
   for (int i = 0; i < ARRAYSIZE; i++) {
     sendCodeStack[i] = "";
   }
 
   if (sendCode != "") {
-    //Serial.println("6");
-    //Serial.println("Sendcode= " + sendCode);
-    // Send Data
     String sheetName = "Data"; // Name of the sheet inside the Google sheets workbook
     HTTPClient http;
     String url="https://script.google.com/macros/s/"+GOOGLE_SCRIPT_ID+"/exec?id=" + sheetName +sendCode;

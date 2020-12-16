@@ -10,19 +10,19 @@ void displayData() {
   if (lora_enable == 1) {Heltec.display->drawXbm(x+30, y, Lora_on_width, Lora_on_height, Lora_on_bits);}
   else {Heltec.display->drawXbm(x+30, y, Lora_off_width, Lora_off_height, Lora_off_bits);}
   if (usbPluggedIn) {Heltec.display->drawXbm(x+100, y, Battery_charging_width, Battery_charging_height, Battery_charging_bits);}
-  else if (batteryLevel > 1.59){Heltec.display->drawXbm(x+100, y, Battery_100_width, Battery_100_height, Battery_100_bits);}
-  else if (batteryLevel > 1.45){Heltec.display->drawXbm(x+100, y, Battery_66_width, Battery_66_height, Battery_66_bits);}
-  else if (batteryLevel > 1.3){Heltec.display->drawXbm(x+100, y, Battery_33_width, Battery_33_height, Battery_33_bits);}
+  else if (batteryLevel > 3.4){Heltec.display->drawXbm(x+100, y, Battery_100_width, Battery_100_height, Battery_100_bits);}
+  else if (batteryLevel > 3.2){Heltec.display->drawXbm(x+100, y, Battery_66_width, Battery_66_height, Battery_66_bits);}
+  else if (batteryLevel > 3){Heltec.display->drawXbm(x+100, y, Battery_33_width, Battery_33_height, Battery_33_bits);}
   else if (batteryLevel > 0){Heltec.display->drawXbm(x+100, y, Battery_0_width, Battery_0_height, Battery_0_bits);}
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
   Heltec.display->setFont(ArialMT_Plain_10);
   Heltec.display->drawString(x+60, y, (String)batteryLevel + " V");
   Heltec.display->drawString(x, y + 10, "T=" + double2string(temperature,1) + "°C");
   Heltec.display->drawString(x+65, y + 10, "RH=" + double2string(humidity,0) + "%");
-  Heltec.display->drawString(x, y + 20, "R1:" + double2string(resistance[0],2));
-  Heltec.display->drawString(x, y + 30, "R2:" + double2string(resistance[1],2));
-  Heltec.display->drawString(x, y + 40, "R3:" + double2string(resistance[2],2));
-  Heltec.display->drawString(x, y + 50, "R4:" + double2string(resistance[3],2));
+  Heltec.display->drawString(x, y + 20, "R1:" + (String)resistance[0]);
+  Heltec.display->drawString(x, y + 30, "R2:" + (String)resistance[1]);
+  Heltec.display->drawString(x, y + 40, "R3:" + (String)resistance[2]);
+  Heltec.display->drawString(x, y + 50, "R4:" + (String)resistance[3]);
   Heltec.display->drawString(x+60, y + 20, "[" + double2string(abs(deltaResistance[0]),2) + "]");
   Heltec.display->drawString(x+60, y + 30, "[" + double2string(abs(deltaResistance[1]),2) + "]");
   Heltec.display->drawString(x+60, y + 40, "[" + double2string(abs(deltaResistance[2]),2) + "]");
@@ -73,13 +73,20 @@ void getResistance() {
     sensorVoltage = 0;
     int j;
     for (j = 0; j < 20; j++) {
+       Serial.println(ads1.readADC_SingleEnded(i));
        sensorVoltage = sensorVoltage + ads1.readADC_SingleEnded(i)*0.000125;
        delay(2);
     }
     sensorVoltage = sensorVoltage/20;
     resistanceMeasurement = Rref * ((Vin / sensorVoltage)-1);
-    deltaResistance[i] = (resistance[i] - resistanceMeasurement)/timeElapsed;
-    resistance[i]  = resistanceMeasurement;
+    if (resistanceMeasurement < 100000 && resistanceMeasurement >= 0) { // only accept reasonable resistances
+      deltaResistance[i] = (resistance[i] - resistanceMeasurement)/timeElapsed;
+      resistance[i]  = resistanceMeasurement;
+    }
+    else {
+      deltaResistance[i] = 0;
+      resistance[i]  = 0;
+    }
   }   
   previousTime = currentTime;
   Serial.print((String)deltaResistance[0] + " - " + (String)deltaResistance[1] + " - " + (String)deltaResistance[2] + " - " + (String)deltaResistance[3] + " - ");
@@ -157,7 +164,8 @@ void transmitLORAPacket() {
 void getBatteryLevel() {
   double batteryOut = analogRead(batterySense)*(3.3/4095);
   double batteryIn = batteryOut*(resistanceBattery1+resistanceBattery2)/resistanceBattery2;
-  batteryLevel = batteryIn;
+  //batteryLevel = batteryIn*1.85;
+ // Serial.println("Battery:" + (String)batteryLevel);
   //Serial.println("Battery:" + (String)batteryIn);
 }
 
@@ -168,8 +176,10 @@ void getBatteryLevel() {
 void getUSBIndicator() {
   double usbOut = analogRead(usbSense)*(3.3/4095);
   double usbIn = usbOut*(resistanceBattery1+resistanceBattery2)/resistanceBattery2;
-  //batteryLevel = usbIn;
-  if (usbIn > 3) {
+  usbIn = usbIn*1.5;
+  batteryLevel = usbIn;
+  //Serial.println("USB:" + (String)usbIn);
+  if (usbIn > 5.05) {
     usbPluggedIn = true;
   }
   else {

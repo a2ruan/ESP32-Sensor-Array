@@ -10,6 +10,11 @@ int lora_enable = 1;
 #define DEMO_DURATION 3000
 typedef void (*Demo)(void);
 
+// DAC for UV LED
+#include <Adafruit_MCP4725.h>
+Adafruit_MCP4725 dac;
+double UVLEDvoltage = 3.3; // 3.3V max
+
 String deviceName = "Gas_Sensor_1"; // NO BLANK SPACES PERMITTED
 
 // RTC
@@ -19,8 +24,8 @@ RTC_DS3231 rtc;
 // External ADC
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
-Adafruit_ADS1115 ads1(0x49);
-Adafruit_ADS1115 ads2(0x48);
+Adafruit_ADS1115 ads1(0x48);
+//Adafruit_ADS1115 ads2(0x48);
 
 // Internal ADC
 const int usbSense = 36;
@@ -64,7 +69,7 @@ const int ledBlue = 25;
 // RESISTANCE MEASUREMENT
 const int sensorPin1 = 39;  // Analog input pin that senses Vout
 double sensorVoltage = 0;  // sensorPin default value
-double Vin = 3.312;             // Input voltage
+double Vin = 3.0;             // Input voltage
 double Rref = 1500;          // Reference resistor's value in ohms (you can give this value in kiloohms or megaohms - the resistance of the tested resistor will be given in the same units)
 
 // Buzzer
@@ -100,6 +105,10 @@ void setup() {
   // External ADC
   ads1.setGain(GAIN_ONE);
   ads1.begin();
+
+  // DAC for UV LED
+  dac.begin(0x62);
+  dac.setVoltage(UVLEDvoltage*(4095/3.3), false); // range from 0 to 4095 aka 0 - 3.3V
   
   // Internal ADC
   pinMode(usbSense, INPUT);
@@ -153,8 +162,8 @@ void loop() {
   Heltec.display->clear();
   displayData();
   Heltec.display->display();
-  setLed(1);
-  setBuzzer(300,200);
+  //setLed(1);
+  //setBuzzer(300,200);
   getBatteryLevel();
   getUSBIndicator();
   temperature = hdc1080.readTemperature();
