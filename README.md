@@ -1,5 +1,3 @@
-<img src="/app/src/github/Banner_v1.jpg" alt="ArduNet Banner" width="500px" height="auto">
-
 # ESP32 Sensor Array
 ESP32 Sensor Array is a network of ESP32 microcontrollers that relay high-speed sensor data to the internet or through Bluetooth to your phone
 
