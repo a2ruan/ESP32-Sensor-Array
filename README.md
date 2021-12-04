@@ -89,7 +89,7 @@ void updateVariables(String packet) {
       deviceName = tempVal;
 }
 ```
-Prepare BLE packet by concatenating all packets into a single string, encoding it into bytes and sending it using BLE transmission
+Prepare BLE packet by concatenating all packets into a single string, encoding it into bytes and sending it using BLE transmission.  A, B, C, D ect. are used as non-descriptive identifier bytes due to bandwidth limitations of BLE, but can be changed to other identification values such as "resistance", "temperature" ect. 
 ```C++
 void transmitBLEPacket() {
   if (deviceConnected) {
